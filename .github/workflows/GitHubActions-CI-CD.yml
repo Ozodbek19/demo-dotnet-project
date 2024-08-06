@@ -98,7 +98,4 @@ jobs:
           Start-Website -Name $using:env:IIS_WEBSITE_NAME
         }
         
-        Remove-PSSession $Session
-
-
-Server=tcp:msapp.database.windows.net,1433;Initial Catalog=mssqldb;Persist Security Info=False;User ID=admin;Password={your_password};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;        
+        Remove-PSSession $Session       
