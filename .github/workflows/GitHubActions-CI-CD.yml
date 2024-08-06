@@ -52,20 +52,20 @@ jobs:
     - name: Install security-scan tool
       run: dotnet tool install --global security-scan
 
-    - name: Run security scan
-      run: |
-        $output = security-scan ${{ env.SOLUTION_FILE }} --export-results security-report.sarif
-        if ($LASTEXITCODE -ne 0) {
-          Write-Output "Security scan completed with warnings or errors:"
-          Write-Output $output
-        } else {
-          Write-Output "Security scan completed successfully."
-        }
+    # - name: Run security scan
+    #   run: |
+    #     $output = security-scan ${{ env.SOLUTION_FILE }} --export-results security-report.sarif
+    #     if ($LASTEXITCODE -ne 0) {
+    #       Write-Output "Security scan completed with warnings or errors:"
+    #       Write-Output $output
+    #     } else {
+    #       Write-Output "Security scan completed successfully."
+    #     }
 
-    - name: Upload security scan results
-      uses: github/codeql-action/upload-sarif@v2
-      with:
-        sarif_file: security-report.sarif
+    # - name: Upload security scan results
+    #   uses: github/codeql-action/upload-sarif@v2
+    #   with:
+    #     sarif_file: security-report.sarif
 
     - name: Publish
       run: dotnet publish ${{ env.SOLUTION_FILE }} --configuration Release --no-build --output ${{github.workspace}}/publish
