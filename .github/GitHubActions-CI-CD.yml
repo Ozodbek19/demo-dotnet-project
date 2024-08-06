@@ -6,13 +6,13 @@
 #   pull_request:
 #     branches: [ 'main', 'develop' ]
 
-# env:
-#   DOTNET_VERSION: '6.0.x'
-#   SOLUTION_FILE: 'DotNetCoreSqlDb.sln'
-#   DB_SERVER: ${{ secrets.DB_SERVER }}
-#   DB_NAME: ${{ secrets.DB_NAME }}
-#   DB_USER: ${{ secrets.DB_USER }}
-#   DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+env:
+  DOTNET_VERSION: '6.0.x'
+  SOLUTION_FILE: 'DotNetCoreSqlDb.sln'
+  DB_SERVER: ${{ secrets.DB_SERVER }}
+  DB_NAME: ${{ secrets.DB_NAME }}
+  DB_USER: ${{ secrets.DB_USER }}
+  DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
 
 # jobs:
 #   build-and-test:

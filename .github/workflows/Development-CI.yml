@@ -3,12 +3,15 @@ name: Development CI
 on:
   push:
     branches: ['develop']
-  pull_request:
-    branches: ['develop', 'main']
 
 env:
   DOTNET_VERSION: '6.0.x'
   SOLUTION_FILE: 'DotNetCoreSqlDb.sln'
+  DB_SERVER: ${{ secrets.DB_SERVER }}
+  DB_NAME: ${{ secrets.DB_NAME }}
+  DB_USER: ${{ secrets.DB_USER }}
+  DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+
 
 jobs:
   build-and-test:
@@ -34,7 +37,7 @@ jobs:
       run: dotnet ef migrations script -p DotNetCoreSqlDb/DotNetCoreSqlDb.csproj -o migrations.sql -i
 
     - name: Publish Migration Script
-      uses: dawidd6/action-upload-artifact@v4
+      uses: actions/upload-artifact@v4
       with:
         name: MigrationScript
         path: migrations.sql  
@@ -49,7 +52,7 @@ jobs:
       run: dotnet publish ${{ env.SOLUTION_FILE }} --configuration Release --no-build --output ${{github.workspace}}/publish
 
     - name: Upload Artifact
-      uses: dawidd6/action-upload-artifact@v4
+      uses: actions/upload-artifact@v4
       with:
         name: WebApp
         path: ${{github.workspace}}/publish 
