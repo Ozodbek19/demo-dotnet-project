@@ -27,7 +27,7 @@ jobs:
     - name: Build
       run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore
 
-    - name: Run unit tests
+    - name: Run unit tests   
       run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
 
     - name: Upload coverage reports to Codecov
@@ -36,7 +36,8 @@ jobs:
     - name: Run security scan
       run: |
         dotnet tool install --global security-scan
-        security-scan ${{ env.SOLUTION_FILE }} --export-results security-report.sarif
+        cd $(dirname ${{ env.SOLUTION_FILE }})
+        security-scan $(basename ${{ env.SOLUTION_FILE }}) --export-results security-report.sarif
 
     - name: Upload security scan results
       uses: github/codeql-action/upload-sarif@v2
