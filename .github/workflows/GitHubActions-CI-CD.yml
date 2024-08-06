@@ -54,7 +54,8 @@ jobs:
       run: dotnet ef migrations script -p DotNetCoreSqlDb/DotNetCoreSqlDb.csproj -o migrations.sql -i
 
     - name: Publish Migration Script
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
+
       with:
         name: MigrationScript
         path: migrations.sql
@@ -63,7 +64,8 @@ jobs:
       run: dotnet publish ${{ env.SOLUTION_FILE }} --configuration Release --output ${{github.workspace}}/publish
 
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
+
       with:
         name: WebApp
         path: ${{github.workspace}}/publish
@@ -74,7 +76,8 @@ jobs:
     runs-on: windows-latest
     steps:
     - name: Download Artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
+
       with:
         name: WebApp
 
@@ -85,10 +88,14 @@ jobs:
         IIS_SERVER_PASSWORD: ${{ secrets.IIS_SERVER_PASSWORD }}
         IIS_WEBSITE_NAME: ${{ secrets.IIS_WEBSITE_NAME }}
         IIS_WEBSITE_PATH: ${{ secrets.IIS_WEBSITE_PATH }}
+      # run: |
+      #   $SecurePassword = ConvertTo-SecureString $env:IIS_SERVER_PASSWORD -AsPlainText -Force
+      #   $Credential = New-Object System.Management.Automation.PSCredential ($env:IIS_SERVER_USERNAME, $SecurePassword)
+      #   $Session = New-PSSession -ComputerName $env:IIS_SERVER_COMPUTER_NAME -Credential $Credential
       run: |
-        $SecurePassword = ConvertTo-SecureString $env:IIS_SERVER_PASSWORD -AsPlainText -Force
-        $Credential = New-Object System.Management.Automation.PSCredential ($env:IIS_SERVER_USERNAME, $SecurePassword)
-        $Session = New-PSSession -ComputerName $env:IIS_SERVER_COMPUTER_NAME -Credential $Credential
+        $securePassword = ConvertTo-SecureString $env:IIS_SERVER_PASSWORD -AsPlainText -Force
+        $credential = New-Object System.Management.Automation.PSCredential ($env:IIS_SERVER_USERNAME, $securePassword)
+        $Session = New-PSSession -ComputerName $env:IIS_SERVER_COMPUTER_NAME -Credential $credential -Authentication Basic -AllowRedirection 
         
         Copy-Item -Path "*" -Destination $env:IIS_WEBSITE_PATH -ToSession $Session -Recurse -Force
         
