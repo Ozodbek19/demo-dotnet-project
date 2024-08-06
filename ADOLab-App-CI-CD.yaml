@@ -1,0 +1,132 @@
+
+trigger:
+  branches:
+    include:
+      - feature/*
+      - bugfix/*
+      - hotfix/*
+      - develop
+      - main
+      - release/*
+variables:
+- group: dotnet-variables 
+  
+
+stages:
+- stage: Build
+  jobs:
+  - job: Build
+    pool:
+      vmImage: 'windows-latest'
+    steps:
+    - task: UseDotNet@2
+      displayName: 'Use .NET Core sdk $(dotnetVersion)'
+      inputs:
+        version: $(dotnetVersion)
+
+    - powershell: |
+        # Get the commit message
+        $commit_message = git log -1 --pretty=%B
+        # Regex pattern for ticket number at the start of the commit message
+        $pattern = "^[A-Z]{2,}-[0-9]+"
+        # Validate commit message
+        if ($commit_message -match $pattern) {
+            Write-Host "Commit message is valid."
+        } else {
+            Write-Host "Invalid commit message. It should start with a ticket number (e.g., 'ABC-123')."
+            exit 1
+        }
+      displayName: 'Validate Commit Message'
+
+    - powershell: |
+        echo "##vso[build.updatebuildnumber]$(Build.BuildNumber)-$(Get-Date -Format "yy.MM.dd.rev")"
+      displayName: 'Update Build Number'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Build Application'
+      inputs:
+        command: 'build'
+        projects: '**/*.csproj'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Install EF Core Tools'
+      inputs:
+        command: 'custom'
+        custom: 'tool'
+        arguments: 'install --global dotnet-ef'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Generate Migration Script'
+      inputs:
+        command: custom
+        custom: ef
+        arguments: 'migrations script -p DotNetCoreSqlDb/DotNetCoreSqlDb.csproj -o migrations.sql -i'
+
+
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathtoPublish: 'migrations.sql'
+        artifactName: 'MigrationScript'
+        publishLocation: 'Container'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish Application'
+      inputs:
+        command: 'publish'
+        publishWebProjects: true
+        arguments: '--configuration Release --output $(Build.ArtifactStagingDirectory)'
+        zipAfterPublish: true
+
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        artifactName: 'WebApp'
+        publishLocation: 'Container'
+
+- stage: DeployApp
+  jobs:
+  - deployment: Deploy
+    environment: Prod
+    pool:
+      vmImage: 'windows-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureCLI@2
+            displayName: 'Update Database Schema'
+            inputs:
+              azureSubscription: 'AzureRMConnection'
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                sqlcmd -S tcp:sql-finaltask-eastus-prod.database.windows.net,1433 -d sqldb-finaltask-eastus-prod -U sqladmin -P P@ssw0rd1234 -i $(Pipeline.Workspace)/MigrationScript/migrations.sql
+
+          - task: AzureRmWebAppDeployment@4
+            displayName: 'Deploy to Azure App Service'
+            inputs:
+              ConnectionType: 'AzureRM'
+              azureSubscription: 'AzureRMConnection'
+              appType: 'webApp'
+              WebAppName: $(app_name)
+              deployToSlotOrASE: true
+              ResourceGroupName: $(rg_name)
+              SlotName: $(slot_name)
+              packageForLinux: '$(Pipeline.Workspace)/WebApp/*.zip'
+
+- stage: SwapSlots
+  jobs:
+  - job: Swap
+    pool:
+      vmImage: 'windows-latest'
+    steps:
+    - task: AzureAppServiceManage@0
+      displayName: 'Swap Slots'
+      inputs:
+        azureSubscription: 'AzureRMConnection'
+        WebAppName: $(app_name)
+        ResourceGroupName: $(rg_name)
+        SourceSlot: $(source_slot_name)
+        targetSlot: $(target_slot_name)
+                
+
