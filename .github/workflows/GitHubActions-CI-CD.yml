@@ -37,9 +37,9 @@ jobs:
     #         exit 1
     #   shell: pwsh
 
-    - name: Update Build Number
-      run: echo "##vso[build.updatebuildnumber]$(Build.BuildNumber)-$(Get-Date -Format 'yy.MM.dd.rev')"
-      shell: pwsh
+    # - name: Update Build Number
+    #   run: echo "##vso[build.updatebuildnumber]$(Build.BuildNumber)-$(Get-Date -Format 'yy.MM.dd.rev')"
+    #   shell: pwsh
 
     - name: Restore dependencies
       run: dotnet restore ${{ env.SOLUTION_FILE }}
