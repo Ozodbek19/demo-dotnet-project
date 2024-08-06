@@ -1,104 +1,96 @@
-name: .NET CI/CD
+# name: .NET CI/CD
 
-on:
-  push:
-    branches: [ 'main', 'develop', 'release/*']
-  pull_request:
-    branches: [ 'main', 'develop' ]
+# on:
+#   push:
+#     branches: [ 'main', 'develop', 'release/*' ]
+#   pull_request:
+#     branches: [ 'main', 'develop' ]
 
-env:
-  DOTNET_VERSION: '6.0.x'
-  SOLUTION_FILE: 'DotNetCoreSqlDb.sln'
-  DB_SERVER: ${{ secrets.DB_SERVER }}
-  DB_NAME: ${{ secrets.DB_NAME }}
-  DB_USER: ${{ secrets.DB_USER }}
-  DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+# env:
+#   DOTNET_VERSION: '6.0.x'
+#   SOLUTION_FILE: 'DotNetCoreSqlDb.sln'
+#   DB_SERVER: ${{ secrets.DB_SERVER }}
+#   DB_NAME: ${{ secrets.DB_NAME }}
+#   DB_USER: ${{ secrets.DB_USER }}
+#   DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
 
+# jobs:
+#   build-and-test:
+#     runs-on: windows-latest
+#     steps:
+#     - uses: actions/checkout@v3
 
-jobs:
-  build-and-test:
-    runs-on: windows-latest
-    steps:
-    - uses: actions/checkout@v3
+#     - name: Setup .NET
+#       uses: actions/setup-dotnet@v3
+#       with:
+#         dotnet-version: ${{ env.DOTNET_VERSION }}
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v3
-      with:
-        dotnet-version: ${{ env.DOTNET_VERSION }}
+#     - name: Restore dependencies
+#       run: dotnet restore ${{ env.SOLUTION_FILE }}
 
-    # - name: Validate Commit Message
-    #   run: |
-    #     $commit_message = (git log -1 --pretty=%B)
-    #     $pattern = "^[A-Z]{2,}-[0-9]+"
-    #     if ($commit_message -match $pattern) {
-    #         Write-Host "Commit message is valid."
-    #     } else {
-    #         Write-Host "Invalid commit message. It should start with a ticket number (e.g., 'ABC-123')."
-    #         exit 1
-    #   shell: pwsh
+#     - name: Build
+#       run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore
 
-    # - name: Update Build Number
-    #   run: echo "##vso[build.updatebuildnumber]$(Build.BuildNumber)-$(Get-Date -Format 'yy.MM.dd.rev')"
-    #   shell: pwsh
+#     - name: Install EF Core Tools
+#       run: dotnet tool install --global dotnet-ef
 
-    - name: Restore dependencies
-      run: dotnet restore ${{ env.SOLUTION_FILE }}
+#     - name: Generate Migration Script
+#       run: dotnet ef migrations script -p DotNetCoreSqlDb/DotNetCoreSqlDb.csproj -o migrations.sql -i
 
-    - name: Build
-      run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore
+#     - name: Publish Migration Script
+#       uses: actions/upload-artifact@v3
+#       with:
+#         name: MigrationScript
+#         path: migrations.sql
 
-    - name: Install EF Core Tools
-      run: dotnet tool install --global dotnet-ef
+#     - name: Run unit tests
+#       run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
 
-    - name: Generate Migration Script
-      run: dotnet ef migrations script -p DotNetCoreSqlDb/DotNetCoreSqlDb.csproj -o migrations.sql -i
+#     - name: Upload coverage reports to Codecov
+#       uses: codecov/codecov-action@v3
 
-    - name: Publish Migration Script
-      uses: actions/upload-artifact@v3
-      with:
-        name: MigrationScript
-        path: migrations.sql
+#     - name: Publish
+#       run: dotnet publish ${{ env.SOLUTION_FILE }} --configuration Release --no-build --output ${{github.workspace}}/publish
 
-    - name: Publish Application
-      run: dotnet publish ${{ env.SOLUTION_FILE }} --configuration Release --output ${{github.workspace}}/publish
+#     - name: Upload Artifact
+#       uses: actions/upload-artifact@v3
+#       with:
+#         name: WebApp
+#         path: ${{github.workspace}}/publish  
 
-    - name: Upload Artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: WebApp
-        path: ${{github.workspace}}/publish
+#   deploy:
+#     needs: build-and-test
+#     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+#     runs-on: windows-latest
+#     steps:
+#     - name: Download Artifact
+#       uses: actions/download-artifact@v3
+#       with:
+#         name: WebApp
 
-  deploy:
-    needs: build-and-test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: windows-latest
-    steps:
-    - name: Download Artifact
-      uses: actions/download-artifact@v3
-      with:
-        name: WebApp
-
-    - name: Deploy to IIS
-      env:
-        IIS_SERVER_COMPUTER_NAME: ${{ secrets.IIS_SERVER_COMPUTER_NAME }}
-        IIS_SERVER_USERNAME: ${{ secrets.IIS_SERVER_USERNAME }}
-        IIS_SERVER_PASSWORD: ${{ secrets.IIS_SERVER_PASSWORD }}
-        IIS_WEBSITE_NAME: ${{ secrets.IIS_WEBSITE_NAME }}
-        IIS_WEBSITE_PATH: ${{ secrets.IIS_WEBSITE_PATH }}
-      run: |
-        $SecurePassword = ConvertTo-SecureString $env:IIS_SERVER_PASSWORD -AsPlainText -Force
-        $Credential = New-Object System.Management.Automation.PSCredential ($env:IIS_SERVER_USERNAME, $SecurePassword)
-        $Session = New-PSSession -ComputerName $env:IIS_SERVER_COMPUTER_NAME -Credential $Credential
+#     - name: Deploy to IIS
+#       env:
+#         IIS_SERVER_COMPUTER_NAME: ${{ secrets.IIS_SERVER_COMPUTER_NAME }}
+#         IIS_SERVER_USERNAME: ${{ secrets.IIS_SERVER_USERNAME }}
+#         IIS_SERVER_PASSWORD: ${{ secrets.IIS_SERVER_PASSWORD }}
+#         IIS_WEBSITE_NAME: ${{ secrets.IIS_WEBSITE_NAME }}
+#         IIS_WEBSITE_PATH: ${{ secrets.IIS_WEBSITE_PATH }}
+#       run: |
+#         $ErrorActionPreference = 'Stop'
+#         $SecurePassword = ConvertTo-SecureString $env:IIS_SERVER_PASSWORD -AsPlainText -Force
+#         $Credential = New-Object System.Management.Automation.PSCredential ($env:IIS_SERVER_USERNAME, $SecurePassword)
         
-        Copy-Item -Path "*" -Destination $env:IIS_WEBSITE_PATH -ToSession $Session -Recurse -Force
-        
-        Invoke-Command -Session $Session -ScriptBlock {
-          Import-Module WebAdministration
-          Stop-Website -Name $using:env:IIS_WEBSITE_NAME
-          Start-Website -Name $using:env:IIS_WEBSITE_NAME
-        }
-        
-        Remove-PSSession $Session
+#         Set-Item WSMan:\localhost\Client\TrustedHosts -Value $env:IIS_SERVER_COMPUTER_NAME -Force
 
+#         $SessionOption = New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck
+#         $Session = New-PSSession -ComputerName $env:IIS_SERVER_COMPUTER_NAME -Credential $Credential -Authentication Basic -SessionOption $SessionOption
 
-       
+#         Copy-Item -Path "${{github.workspace}}/publish/*" -Destination $env:IIS_WEBSITE_PATH -ToSession $Session -Recurse -Force
+
+#         Invoke-Command -Session $Session -ScriptBlock {
+#           Import-Module WebAdministration
+#           Stop-Website -Name $using:env:IIS_WEBSITE_NAME
+#           Start-Website -Name $using:env:IIS_WEBSITE_NAME
+#         }
+
+#         Remove-PSSession $Session

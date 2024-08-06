@@ -2,7 +2,7 @@ name: .NET CI/CD
 
 on:
   push:
-    branches: [ 'main', 'develop', 'release/*' ]
+    branches: [ 'main', 'develop', 'release/*']
   pull_request:
     branches: [ 'main', 'develop' ]
 
@@ -14,6 +14,7 @@ env:
   DB_USER: ${{ secrets.DB_USER }}
   DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
 
+
 jobs:
   build-and-test:
     runs-on: windows-latest
@@ -24,6 +25,21 @@ jobs:
       uses: actions/setup-dotnet@v3
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    # - name: Validate Commit Message
+    #   run: |
+    #     $commit_message = (git log -1 --pretty=%B)
+    #     $pattern = "^[A-Z]{2,}-[0-9]+"
+    #     if ($commit_message -match $pattern) {
+    #         Write-Host "Commit message is valid."
+    #     } else {
+    #         Write-Host "Invalid commit message. It should start with a ticket number (e.g., 'ABC-123')."
+    #         exit 1
+    #   shell: pwsh
+
+    # - name: Update Build Number
+    #   run: echo "##vso[build.updatebuildnumber]$(Build.BuildNumber)-$(Get-Date -Format 'yy.MM.dd.rev')"
+    #   shell: pwsh
 
     - name: Restore dependencies
       run: dotnet restore ${{ env.SOLUTION_FILE }}
@@ -43,38 +59,14 @@ jobs:
         name: MigrationScript
         path: migrations.sql
 
-    - name: Run unit tests
-      run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
-
-    - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v3
-
-    - name: Install security-scan tool
-      run: dotnet tool install --global security-scan
-
-    # - name: Run security scan
-    #   run: |
-    #     $output = security-scan ${{ env.SOLUTION_FILE }} --export-results security-report.sarif
-    #     if ($LASTEXITCODE -ne 0) {
-    #       Write-Output "Security scan completed with warnings or errors:"
-    #       Write-Output $output
-    #     } else {
-    #       Write-Output "Security scan completed successfully."
-    #     }
-
-    # - name: Upload security scan results
-    #   uses: github/codeql-action/upload-sarif@v2
-    #   with:
-    #     sarif_file: security-report.sarif
-
-    - name: Publish
-      run: dotnet publish ${{ env.SOLUTION_FILE }} --configuration Release --no-build --output ${{github.workspace}}/publish
+    - name: Publish Application
+      run: dotnet publish ${{ env.SOLUTION_FILE }} --configuration Release --output ${{github.workspace}}/publish
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v3
       with:
         name: WebApp
-        path: ${{github.workspace}}/publish  
+        path: ${{github.workspace}}/publish
 
   deploy:
     needs: build-and-test
@@ -94,21 +86,19 @@ jobs:
         IIS_WEBSITE_NAME: ${{ secrets.IIS_WEBSITE_NAME }}
         IIS_WEBSITE_PATH: ${{ secrets.IIS_WEBSITE_PATH }}
       run: |
-        $ErrorActionPreference = 'Stop'
         $SecurePassword = ConvertTo-SecureString $env:IIS_SERVER_PASSWORD -AsPlainText -Force
         $Credential = New-Object System.Management.Automation.PSCredential ($env:IIS_SERVER_USERNAME, $SecurePassword)
+        $Session = New-PSSession -ComputerName $env:IIS_SERVER_COMPUTER_NAME -Credential $Credential
         
-        Set-Item WSMan:\localhost\Client\TrustedHosts -Value $env:IIS_SERVER_COMPUTER_NAME -Force
-
-        $SessionOption = New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck
-        $Session = New-PSSession -ComputerName $env:IIS_SERVER_COMPUTER_NAME -Credential $Credential -Authentication Basic -SessionOption $SessionOption
-
-        Copy-Item -Path "${{github.workspace}}/publish/*" -Destination $env:IIS_WEBSITE_PATH -ToSession $Session -Recurse -Force
-
+        Copy-Item -Path "*" -Destination $env:IIS_WEBSITE_PATH -ToSession $Session -Recurse -Force
+        
         Invoke-Command -Session $Session -ScriptBlock {
           Import-Module WebAdministration
           Stop-Website -Name $using:env:IIS_WEBSITE_NAME
           Start-Website -Name $using:env:IIS_WEBSITE_NAME
         }
-
+        
         Remove-PSSession $Session
+
+
+       
