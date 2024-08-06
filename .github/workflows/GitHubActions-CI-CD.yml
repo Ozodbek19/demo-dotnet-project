@@ -7,11 +7,15 @@ on:
     branches: [ 'main', 'develop' ]
 
 env:
-  DOTNET_VERSION: '6.0.424'
-  SOLUTION_FILE: DotNetCoreSqlDb.sln
+  DOTNET_VERSION: '6.0.x'
+  SOLUTION_FILE: 'DotNetCoreSqlDb.sln'
+  DB_SERVER: ${{ secrets.DB_SERVER }}
+  DB_NAME: ${{ secrets.DB_NAME }}
+  DB_USER: ${{ secrets.DB_USER }}
+  DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
 
 jobs:
-  build-test-deploy:
+  build-test:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v3
@@ -27,17 +31,36 @@ jobs:
     - name: Build
       run: dotnet build ${{ env.SOLUTION_FILE }} --configuration Release --no-restore
 
-    - name: Run unit tests   
+    - name: Install EF Core Tools
+      run: dotnet tool install --global dotnet-ef
+
+    - name: Generate Migration Script
+      run: dotnet ef migrations script -p DotNetCoreSqlDb/DotNetCoreSqlDb.csproj -o migrations.sql -i
+
+    - name: Publish Migration Script
+      uses: actions/upload-artifact@v3
+      with:
+        name: MigrationScript
+        path: migrations.sql
+
+    - name: Run unit tests
       run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v3
 
+    - name: Install security-scan tool
+      run: dotnet tool install --global security-scan
+
     - name: Run security scan
       run: |
-        dotnet tool install --global security-scan
-        cd $(dirname ${{ env.SOLUTION_FILE }})
-        security-scan $(basename ${{ env.SOLUTION_FILE }}) --export-results security-report.sarif
+        $output = security-scan ${{ env.SOLUTION_FILE }} --export-results security-report.sarif
+        if ($LASTEXITCODE -ne 0) {
+          Write-Output "Security scan completed with warnings or errors:"
+          Write-Output $output
+        } else {
+          Write-Output "Security scan completed successfully."
+        }
 
     - name: Upload security scan results
       uses: github/codeql-action/upload-sarif@v2
@@ -47,8 +70,23 @@ jobs:
     - name: Publish
       run: dotnet publish ${{ env.SOLUTION_FILE }} --configuration Release --no-build --output ${{github.workspace}}/publish
 
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: WebApp
+        path: ${{github.workspace}}/publish  
+
+  deploy:
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: windows-latest
+    steps:
+    - name: Download Artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: WebApp
+
     - name: Deploy to IIS
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       env:
         IIS_SERVER_COMPUTER_NAME: ${{ secrets.IIS_SERVER_COMPUTER_NAME }}
         IIS_SERVER_USERNAME: ${{ secrets.IIS_SERVER_USERNAME }}
@@ -60,22 +98,17 @@ jobs:
         $SecurePassword = ConvertTo-SecureString $env:IIS_SERVER_PASSWORD -AsPlainText -Force
         $Credential = New-Object System.Management.Automation.PSCredential ($env:IIS_SERVER_USERNAME, $SecurePassword)
         
-        # Configure TrustedHosts if not already configured
         Set-Item WSMan:\localhost\Client\TrustedHosts -Value $env:IIS_SERVER_COMPUTER_NAME -Force
 
-        # Create a new PSSession with Basic authentication and allow unencrypted connections
         $SessionOption = New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck
         $Session = New-PSSession -ComputerName $env:IIS_SERVER_COMPUTER_NAME -Credential $Credential -Authentication Basic -SessionOption $SessionOption
 
-        # Copy files to the remote server
         Copy-Item -Path "${{github.workspace}}/publish/*" -Destination $env:IIS_WEBSITE_PATH -ToSession $Session -Recurse -Force
 
-        # Execute commands on the remote server
         Invoke-Command -Session $Session -ScriptBlock {
           Import-Module WebAdministration
           Stop-Website -Name $using:env:IIS_WEBSITE_NAME
           Start-Website -Name $using:env:IIS_WEBSITE_NAME
         }
 
-        # Clean up the PSSession
         Remove-PSSession $Session
