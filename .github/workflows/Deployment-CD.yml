@@ -7,15 +7,18 @@ on:
 jobs:
   deploy:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        artifact: [WebApp, MigrationScript]
     steps:
-    - name: Download Artifact
-      uses: dawidd6/action-download-artifact@v2
+    - name: Download ${{ matrix.artifact }} Artifact
+      uses: dawidd6/action-download-artifact@v4
       with:
         github_token: ${{secrets.ACCESS_TOKEN}}
-        workflow: Deployment-CD.yml
+        workflow: Development-CI.yml
         branch: develop
-        name: WebApp
-        path: ${{github.workspace}}/WebApp
+        name: ${{ matrix.artifact }}
+        path: ${{ github.workspace }}/${{ matrix.artifact }}
 
     - name: Deploy to IIS
       env:

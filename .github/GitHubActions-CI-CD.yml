@@ -37,11 +37,11 @@
 #     - name: Generate Migration Script
 #       run: dotnet ef migrations script -p DotNetCoreSqlDb/DotNetCoreSqlDb.csproj -o migrations.sql -i
 
-#     - name: Publish Migration Script
-#       uses: actions/upload-artifact@v3
-#       with:
-#         name: MigrationScript
-#         path: migrations.sql
+    # - name: Publish Migration Script
+    #   uses: actions/upload-artifact@v3
+    #   with:
+    #     name: MigrationScript
+    #     path: migrations.sql
 
 #     - name: Run unit tests
 #       run: dotnet test ${{ env.SOLUTION_FILE }} --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
@@ -52,11 +52,11 @@
 #     - name: Publish
 #       run: dotnet publish ${{ env.SOLUTION_FILE }} --configuration Release --no-build --output ${{github.workspace}}/publish
 
-#     - name: Upload Artifact
-#       uses: actions/upload-artifact@v3
-#       with:
-#         name: WebApp
-#         path: ${{github.workspace}}/publish  
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: WebApp
+        path: ${{github.workspace}}/publish  
 
 #   deploy:
 #     needs: build-and-test
