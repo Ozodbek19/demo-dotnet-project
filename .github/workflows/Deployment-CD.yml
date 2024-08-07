@@ -150,12 +150,15 @@ jobs:
           # Import the SqlServer module
           Import-Module SqlServer
           
+          # Read connection string from appsettings.json
+          $appSettingsPath = Join-Path $using:env:IIS_WEBSITE_PATH "appsettings.json"
+          $appSettings = Get-Content $appSettingsPath -Raw | ConvertFrom-Json
+          $connectionString = $appSettings.ConnectionStrings.MyDbConnection
+          
           # Run database migrations if needed
           $migrationScriptPath = Join-Path $using:env:IIS_WEBSITE_PATH "migrations.sql"
           if (Test-Path $migrationScriptPath) {
-            # Import the SqlServer module
-            Import-Module SqlServer
-            Invoke-Sqlcmd -InputFile $migrationScriptPath -ServerInstance $using:env:DB_SERVER -Database $using:env:DB_NAME -Username $using:env:DB_USER -Password $using:env:DB_PASSWORD
+            Invoke-Sqlcmd -InputFile $migrationScriptPath -ConnectionString $connectionString -ConnectionTimeout 120 -QueryTimeout 120
           }
 
           Start-Website -Name $using:env:IIS_WEBSITE_NAME
