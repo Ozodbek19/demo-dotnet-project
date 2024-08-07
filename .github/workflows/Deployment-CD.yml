@@ -1,3 +1,69 @@
+# name: Deploy to Production
+
+# on:
+#   push:
+#     branches: ['main']
+
+# jobs:
+#   deploy:
+#     runs-on: windows-latest
+#     strategy:
+#       matrix:
+#         artifact: [WebApp, MigrationScript]
+#     steps:
+#     - name: Download ${{ matrix.artifact }} Artifact
+#       uses: dawidd6/action-download-artifact@v4
+#       with:
+#         github_token: ${{ secrets.ACCESS_TOKEN }}
+#         workflow: Development-CI.yml
+#         branch: develop
+#         name: ${{ matrix.artifact }}
+#         path: ${{ github.workspace }}/${{ matrix.artifact }}
+
+#     - name: Deploy to IIS
+#       env:
+#         IIS_SERVER_COMPUTER_NAME: ${{ secrets.IIS_SERVER_COMPUTER_NAME }}
+#         IIS_SERVER_USERNAME: ${{ secrets.IIS_SERVER_USERNAME }}
+#         IIS_SERVER_PASSWORD: ${{ secrets.IIS_SERVER_PASSWORD }}
+#         IIS_WEBSITE_NAME: ${{ secrets.IIS_WEBSITE_NAME }}
+#         IIS_WEBSITE_PATH: ${{ secrets.IIS_WEBSITE_PATH }}
+#       run: |
+#         $ErrorActionPreference = 'Stop'
+#         $SecurePassword = ConvertTo-SecureString $env:IIS_SERVER_PASSWORD -AsPlainText -Force
+#         $Credential = New-Object System.Management.Automation.PSCredential ($env:IIS_SERVER_USERNAME, $SecurePassword)
+        
+#         Set-Item WSMan:\localhost\Client\TrustedHosts -Value $env:IIS_SERVER_COMPUTER_NAME -Force
+
+#         # Enable unencrypted traffic
+#         winrm set winrm/config/client '@{AllowUnencrypted="true"}'
+
+#         $SessionOption = New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck
+#         $Session = New-PSSession -ComputerName $env:IIS_SERVER_COMPUTER_NAME -Credential $Credential -Authentication Basic -SessionOption $SessionOption
+
+#         # Copy WebApp files
+#         Copy-Item -Path "${{ github.workspace }}/WebApp/*" -Destination $env:IIS_WEBSITE_PATH -ToSession $Session -Recurse -Force
+
+#         # Copy MigrationScript files
+#         Copy-Item -Path "${{ github.workspace }}/MigrationScript/*" -Destination $env:IIS_WEBSITE_PATH -ToSession $Session -Recurse -Force
+
+#         Invoke-Command -Session $Session -ScriptBlock {
+#           Import-Module WebAdministration
+#           Stop-Website -Name $using:env:IIS_WEBSITE_NAME
+          
+#           # Run database migrations if needed
+#           $migrationScriptPath = Join-Path $using:env:IIS_WEBSITE_PATH "MigrationScript/migrations.sql"
+#           if (Test-Path $migrationScriptPath) {
+#             Invoke-Sqlcmd -InputFile $migrationScriptPath -ServerInstance $using:env:DB_SERVER -Database $using:env:DB_NAME -Username $using:env:DB_USER -Password $using:env:DB_PASSWORD
+#           }
+
+#           Start-Website -Name $using:env:IIS_WEBSITE_NAME
+#         }
+
+#         Remove-PSSession $Session
+
+
+
+
 name: Deploy to Production
 
 on:
@@ -5,7 +71,7 @@ on:
     branches: ['main']
 
 jobs:
-  deploy:
+  download-artifacts:
     runs-on: windows-latest
     strategy:
       matrix:
@@ -18,7 +84,29 @@ jobs:
         workflow: Development-CI.yml
         branch: develop
         name: ${{ matrix.artifact }}
-        path: ${{ github.workspace }}/${{ matrix.artifact }}
+        path: ${{ github.workspace }}/artifacts/${{ matrix.artifact }}
+
+    - name: Upload ${{ matrix.artifact }} for deployment
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.artifact }}-for-deploy
+        path: ${{ github.workspace }}/artifacts/${{ matrix.artifact }}
+
+  deploy:
+    needs: download-artifacts
+    runs-on: windows-latest
+    steps:
+    - name: Download WebApp artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: WebApp-for-deploy
+        path: ${{ github.workspace }}/artifacts/WebApp
+
+    - name: Download MigrationScript artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: MigrationScript-for-deploy
+        path: ${{ github.workspace }}/artifacts/MigrationScript
 
     - name: Deploy to IIS
       env:
@@ -27,6 +115,10 @@ jobs:
         IIS_SERVER_PASSWORD: ${{ secrets.IIS_SERVER_PASSWORD }}
         IIS_WEBSITE_NAME: ${{ secrets.IIS_WEBSITE_NAME }}
         IIS_WEBSITE_PATH: ${{ secrets.IIS_WEBSITE_PATH }}
+        DB_SERVER: ${{ secrets.DB_SERVER }}
+        DB_NAME: ${{ secrets.DB_NAME }}
+        DB_USER: ${{ secrets.DB_USER }}
+        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
       run: |
         $ErrorActionPreference = 'Stop'
         $SecurePassword = ConvertTo-SecureString $env:IIS_SERVER_PASSWORD -AsPlainText -Force
@@ -41,17 +133,17 @@ jobs:
         $Session = New-PSSession -ComputerName $env:IIS_SERVER_COMPUTER_NAME -Credential $Credential -Authentication Basic -SessionOption $SessionOption
 
         # Copy WebApp files
-        Copy-Item -Path "${{ github.workspace }}/WebApp/*" -Destination $env:IIS_WEBSITE_PATH -ToSession $Session -Recurse -Force
+        Copy-Item -Path "${{ github.workspace }}/artifacts/WebApp/*" -Destination $env:IIS_WEBSITE_PATH -ToSession $Session -Recurse -Force
 
         # Copy MigrationScript files
-        Copy-Item -Path "${{ github.workspace }}/MigrationScript/*" -Destination $env:IIS_WEBSITE_PATH -ToSession $Session -Recurse -Force
+        Copy-Item -Path "${{ github.workspace }}/artifacts/MigrationScript/*" -Destination $env:IIS_WEBSITE_PATH -ToSession $Session -Recurse -Force
 
         Invoke-Command -Session $Session -ScriptBlock {
           Import-Module WebAdministration
           Stop-Website -Name $using:env:IIS_WEBSITE_NAME
           
           # Run database migrations if needed
-          $migrationScriptPath = Join-Path $using:env:IIS_WEBSITE_PATH "MigrationScript/migrations.sql"
+          $migrationScriptPath = Join-Path $using:env:IIS_WEBSITE_PATH "migrations.sql"
           if (Test-Path $migrationScriptPath) {
             Invoke-Sqlcmd -InputFile $migrationScriptPath -ServerInstance $using:env:DB_SERVER -Database $using:env:DB_NAME -Username $using:env:DB_USER -Password $using:env:DB_PASSWORD
           }
