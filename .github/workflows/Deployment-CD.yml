@@ -34,6 +34,9 @@ jobs:
         
         Set-Item WSMan:\localhost\Client\TrustedHosts -Value $env:IIS_SERVER_COMPUTER_NAME -Force
 
+        # Enable unencrypted traffic
+        winrm set winrm/config/client '@{AllowUnencrypted="true"}'
+
         $SessionOption = New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck
         $Session = New-PSSession -ComputerName $env:IIS_SERVER_COMPUTER_NAME -Credential $Credential -Authentication Basic -SessionOption $SessionOption
 
