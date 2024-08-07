@@ -101,10 +101,6 @@ jobs:
       with:
         name: WebApp-for-deploy
         path: ${{ github.workspace }}/artifacts/WebApp
-
-    - name: Install SqlServer module
-      run: |
-        Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser
       
     - name: Download MigrationScript artifact
       uses: actions/download-artifact@v3
@@ -145,6 +141,14 @@ jobs:
         Invoke-Command -Session $Session -ScriptBlock {
           Import-Module WebAdministration
           Stop-Website -Name $using:env:IIS_WEBSITE_NAME
+
+          # Install SqlServer module if not already installed
+          if (!(Get-Module -ListAvailable -Name SqlServer)) {
+            Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser
+          }
+
+          # Import the SqlServer module
+          Import-Module SqlServer
           
           # Run database migrations if needed
           $migrationScriptPath = Join-Path $using:env:IIS_WEBSITE_PATH "migrations.sql"
