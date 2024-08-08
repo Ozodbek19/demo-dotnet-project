@@ -28,3 +28,9 @@ Set-WebConfigurationProperty -Filter /system.webServer/directoryBrowse -Name ena
 Start-Website -Name $siteName
 
 Write-Host "IIS configuration complete. Website '$siteName' is set up and running."
+
+
+Import-Module WebAdministration
+$siteName = "demoapp" 
+$appPoolName = (Get-Website -Name $siteName).applicationPool
+Get-ItemProperty IIS:\AppPools\$appPoolName
