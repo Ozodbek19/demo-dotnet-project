@@ -12,7 +12,7 @@
 #         artifact: [WebApp, MigrationScript]
 #     steps:
 #     - name: Download ${{ matrix.artifact }} Artifact
-#       uses: dawidd6/action-download-artifact@v4
+#       uses: dawidd6/action-download-artifact@v6
 #       with:
 #         github_token: ${{ secrets.ACCESS_TOKEN }}
 #         workflow: Development-CI.yml
@@ -78,7 +78,7 @@ jobs:
         artifact: [WebApp, MigrationScript]
     steps:
     - name: Download ${{ matrix.artifact }} Artifact
-      uses: dawidd6/action-download-artifact@v4
+      uses: dawidd6/action-download-artifact@v6
       with:
         github_token: ${{ secrets.ACCESS_TOKEN }}
         workflow: Development-CI.yml
