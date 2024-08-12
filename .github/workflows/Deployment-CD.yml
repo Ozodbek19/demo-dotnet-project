@@ -97,13 +97,13 @@ jobs:
     runs-on: windows-latest
     steps:
     - name: Download WebApp artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: WebApp-for-deploy
         path: ${{ github.workspace }}/artifacts/WebApp
       
     - name: Download MigrationScript artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: MigrationScript-for-deploy
         path: ${{ github.workspace }}/artifacts/MigrationScript
