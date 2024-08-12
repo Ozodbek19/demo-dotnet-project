@@ -87,7 +87,7 @@ jobs:
         path: ${{ github.workspace }}/artifacts/${{ matrix.artifact }}
 
     - name: Upload ${{ matrix.artifact }} for deployment
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.artifact }}-for-deploy
         path: ${{ github.workspace }}/artifacts/${{ matrix.artifact }}
